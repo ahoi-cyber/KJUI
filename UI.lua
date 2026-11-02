@@ -1,5 +1,5 @@
 -- =========================================================
--- ULTIMATE ROBLOX EXECUTOR-STYLE UI FRAMEWORK V1.0
+-- ULTIMATE ROBLOX EXECUTOR-STYLE UI FRAMEWORK V1.0 (UPDATED)
 -- =========================================================
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -94,7 +94,6 @@ function Library:Notify(options)
     })
     notif.Parent = NotifyLayout
 
-    -- Animation In
     TweenService:Create(notif, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundTransparency = 0.1}):Play()
     for _, child in pairs(notif:GetChildren()) do
         if child:IsA("TextLabel") or child:IsA("UIStroke") then
@@ -104,7 +103,6 @@ function Library:Notify(options)
 
     task.spawn(function()
         task.wait(duration)
-        -- Animation Out
         TweenService:Create(notif, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
         for _, child in pairs(notif:GetChildren()) do
             if child:IsA("TextLabel") or child:IsA("UIStroke") then
@@ -128,6 +126,18 @@ function Library:CreateWindow(options)
     pcall(function() ScreenGui.Parent = CoreGui end)
     if not ScreenGui.Parent then ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui") end
 
+    -- Nút mở lại UI khi thu nhỏ (Floating Open Button)
+    local OpenButton = Create("TextButton", {
+        Name = "OpenUI", Parent = ScreenGui, Size = UDim2.new(0, 45, 0, 45),
+        Position = UDim2.new(0, 20, 0.5, -22.5), BackgroundColor3 = theme.Secondary,
+        Text = "UI", Font = Enum.Font.GothamBold, TextSize = 14, TextColor3 = theme.Accent,
+        Visible = false, AutoButtonColor = false, ZIndex = 999
+    }, {
+        Create("UICorner", {CornerRadius = UDim.new(0, 8)}),
+        Create("UIStroke", {Color = theme.Stroke, Thickness = 1})
+    })
+    MakeDraggable(OpenButton, OpenButton)
+
     local Main = Create("Frame", {
         Name = "Main", Parent = ScreenGui, Size = UDim2.new(0, 600, 0, 400),
         Position = UDim2.new(0.5, -300, 0.5, -200), BackgroundColor3 = theme.Main, ClipsDescendants = true
@@ -141,7 +151,17 @@ function Library:CreateWindow(options)
             Create("Frame", {Size = UDim2.new(1, 0, 0.5, 0), Position = UDim2.new(0, 0, 0.5, 0), BackgroundColor3 = theme.Secondary, BorderSizePixel = 0}),
             Create("TextLabel", {
                 Name = "Title", Text = titleText, Font = Enum.Font.GothamBold, TextSize = 16, TextColor3 = theme.Text,
-                Size = UDim2.new(1, -20, 1, 0), Position = UDim2.new(0, 15, 0, 0), TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1
+                Size = UDim2.new(1, -100, 1, 0), Position = UDim2.new(0, 15, 0, 0), TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1
+            }),
+            -- Nút Thu Nhỏ (-)
+            Create("TextButton", {
+                Name = "MinimizeButton", Text = "-", Font = Enum.Font.GothamBold, TextSize = 18, TextColor3 = theme.Text,
+                Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -70, 0.5, -15), BackgroundTransparency = 1
+            }),
+            -- Nút Đóng (X)
+            Create("TextButton", {
+                Name = "CloseButton", Text = "×", Font = Enum.Font.GothamBold, TextSize = 18, TextColor3 = Color3.fromRGB(255, 85, 85),
+                Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -35, 0.5, -15), BackgroundTransparency = 1
             })
         }),
         Create("Frame", { -- Sidebar (Tabs)
@@ -157,11 +177,30 @@ function Library:CreateWindow(options)
 
     MakeDraggable(Main.Topbar, Main)
 
-    -- Toggle UI (RightShift)
+    -- Hàm xử lý ẩn/hiện UI chung
+    local function ToggleUI(state)
+        isToggled = state
+        Main.Visible = isToggled
+        OpenButton.Visible = not isToggled
+    end
+
+    -- Sự kiện các nút điều hướng UI
+    Main.Topbar.MinimizeButton.MouseButton1Click:Connect(function()
+        ToggleUI(false)
+    end)
+
+    Main.Topbar.CloseButton.MouseButton1Click:Connect(function()
+        ScreenGui:Destroy()
+    end)
+
+    OpenButton.MouseButton1Click:Connect(function()
+        ToggleUI(true)
+    end)
+
+    -- Phím tắt RightShift
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if not gameProcessed and input.KeyCode == Enum.KeyCode.RightShift then
-            isToggled = not isToggled
-            Main.Visible = isToggled
+            ToggleUI(not isToggled)
         end
     end)
 
@@ -202,7 +241,6 @@ function Library:CreateWindow(options)
             TweenService:Create(TabButton, TweenInfo.new(0.3), {TextColor3 = theme.Accent, BackgroundTransparency = 0.9}):Play()
         end)
 
-        -- Khởi tạo Tab đầu tiên
         if not WindowObj.CurrentTab then
             WindowObj.CurrentTab = tabName
             TabContent.Visible = true
