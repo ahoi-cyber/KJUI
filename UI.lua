@@ -1,6 +1,6 @@
 -- =========================================================
--- ULTIMATE ROBLOX EXECUTOR-STYLE UI FRAMEWORK V2.0
--- Inspired by Rayfield, Fluent UI & Linoria
+-- ULTIMATE ROBLOX EXECUTOR-STYLE UI FRAMEWORK V2.1
+-- New: iPhone Out-Of-Box (Apple Boot + "Xin chào" Intro)
 -- =========================================================
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -8,7 +8,7 @@ local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 
 local Library = {
-    Version = "2.0.0",
+    Version = "2.1.0",
     Flags = {},
     ThemeObjects = {},
     CurrentTheme = "Dark",
@@ -133,11 +133,10 @@ local function CreateRipple(button, accentColor)
     })
 
     local maxSize = math.max(button.AbsoluteSize.X, button.AbsoluteSize.Y) * 2.2
-    local tween = TweenService:Create(circle, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    TweenService:Create(circle, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         Size = UDim2.new(0, maxSize, 0, maxSize),
         BackgroundTransparency = 1
-    })
-    tween:Play()
+    }):Play()
     task.delay(0.45, function()
         if circle then circle:Destroy() end
     end)
@@ -317,7 +316,7 @@ function Library:Notify(options)
 end
 
 -- =========================================================
--- WINDOW & COMPONENT CREATION
+-- WINDOW & iOS OOBE INTRO CREATION
 -- =========================================================
 function Library:CreateWindow(options)
     options = options or {}
@@ -326,20 +325,25 @@ function Library:CreateWindow(options)
     Library.CurrentTheme = options.Theme or "Dark"
     local theme = Library.Themes[Library.CurrentTheme] or Library.Themes.Dark
 
+    local useIntro = options.Intro ~= false
+    local introLogo = options.IntroLogo or ""
+    local introAutoContinue = options.IntroAutoContinue or false
+
     local isToggled = true
+    local introFinished = not useIntro
     local blurEnabled = options.Blur ~= false
     local baseScale = 1
     local Connections = {}
 
-    -- Khởi tạo Blur Effect trong Lighting
     local BlurEffect = Instance.new("BlurEffect")
     BlurEffect.Name = "UltimateUI_Blur"
-    BlurEffect.Size = blurEnabled and 12 or 0
+    BlurEffect.Size = useIntro and 24 or (blurEnabled and 12 or 0)
     pcall(function() BlurEffect.Parent = Lighting end)
 
     local ScreenGui = Create("ScreenGui", {
         Name = titleText,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        IgnoreGuiInset = true,
         ResetOnSpawn = false
     })
     ScreenGui.Parent = GetSafeGuiParent()
@@ -372,6 +376,7 @@ function Library:CreateWindow(options)
         Size = UDim2.new(0, 640, 0, 420),
         Position = UDim2.new(0.5, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
+        Visible = not useIntro,
         ClipsDescendants = true
     }, {
         Create("UICorner", {CornerRadius = UDim.new(0, 10)})
@@ -381,13 +386,232 @@ function Library:CreateWindow(options)
     local MainStroke = Create("UIStroke", {Parent = Main, Thickness = 1.2})
     BindTheme(MainStroke, "Color", "Stroke")
 
-    local MainScale = Create("UIScale", {Parent = Main, Scale = 1})
+    local MainScale = Create("UIScale", {Parent = Main, Scale = useIntro and 0.85 or 1})
 
-    -- Responsive tự động trên màn hình nhỏ (Mobile)
     local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
     if viewport.Y < 500 then
         baseScale = 0.78
-        MainScale.Scale = baseScale
+        if not useIntro then MainScale.Scale = baseScale end
+    end
+
+    -- =========================================================
+    -- iOS / iPHONE OUT-OF-BOX INTRO SEQUENCE
+    -- =========================================================
+    if useIntro then
+        local IntroOverlay = Create("Frame", {
+            Name = "iOSIntroOverlay",
+            Parent = ScreenGui,
+            Size = UDim2.new(1, 0, 1, 0),
+            Position = UDim2.new(0, 0, 0, 0),
+            BackgroundColor3 = Color3.fromRGB(8, 8, 10),
+            BackgroundTransparency = 0.04,
+            ZIndex = 2000,
+            ClipsDescendants = true
+        })
+
+        -- Ánh sáng Ambient Glow mềm phía sau chữ Hello
+        local AmbientGlow = Create("Frame", {
+            Parent = IntroOverlay,
+            Size = UDim2.new(0, 420, 0, 220),
+            Position = UDim2.new(0.5, 0, 0.45, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = theme.Accent,
+            BackgroundTransparency = 1,
+            ZIndex = 2001
+        }, {
+            Create("UICorner", {CornerRadius = UDim.new(1, 0)})
+        })
+
+        -- PHASE 1: Logo & Thanh Boot kiểu Apple
+        local BootLogo = Create("TextLabel", {
+            Parent = IntroOverlay,
+            Text = introLogo,
+            Font = Enum.Font.GothamBold,
+            TextSize = 64,
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextTransparency = 1,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(0, 100, 0, 100),
+            Position = UDim2.new(0.5, 0, 0.43, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            ZIndex = 2002
+        })
+
+        local BootBarBg = Create("Frame", {
+            Parent = IntroOverlay,
+            Size = UDim2.new(0, 180, 0, 4),
+            Position = UDim2.new(0.5, 0, 0.56, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = Color3.fromRGB(55, 55, 62),
+            BackgroundTransparency = 1,
+            ZIndex = 2002
+        }, {
+            Create("UICorner", {CornerRadius = UDim.new(1, 0)})
+        })
+
+        local BootBarFill = Create("Frame", {
+            Parent = BootBarBg,
+            Size = UDim2.new(0, 0, 1, 0),
+            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+            ZIndex = 2003
+        }, {
+            Create("UICorner", {CornerRadius = UDim.new(1, 0)})
+        })
+
+        -- PHASE 2: Màn hình "Hello / Xin chào"
+        local HelloLabel = Create("TextLabel", {
+            Parent = IntroOverlay,
+            Text = "Hello",
+            Font = Enum.Font.GothamBold,
+            TextSize = 54,
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextTransparency = 1,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, -40, 0, 75),
+            Position = UDim2.new(0.5, 0, 0.44, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            ZIndex = 2002
+        })
+
+        local WelcomeSub = Create("TextLabel", {
+            Parent = IntroOverlay,
+            Text = "Chào mừng đến với " .. titleText,
+            Font = Enum.Font.Gotham,
+            TextSize = 15,
+            TextColor3 = Color3.fromRGB(185, 185, 195),
+            TextTransparency = 1,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, -40, 0, 26),
+            Position = UDim2.new(0.5, 0, 0.53, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            ZIndex = 2002
+        })
+
+        -- Nút "Nhấn để bắt đầu" kiểu iOS Glass Pill
+        local UnlockBtn = Create("TextButton", {
+            Parent = IntroOverlay,
+            Text = "Nhấn để bắt đầu",
+            Font = Enum.Font.GothamSemibold,
+            TextSize = 14,
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextTransparency = 1,
+            BackgroundColor3 = Color3.fromRGB(45, 45, 55),
+            BackgroundTransparency = 1,
+            Size = UDim2.new(0, 190, 0, 42),
+            Position = UDim2.new(0.5, 0, 0.82, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            AutoButtonColor = false,
+            Visible = false,
+            ZIndex = 2004
+        }, {
+            Create("UICorner", {CornerRadius = UDim.new(1, 0)}),
+            Create("UIStroke", {Name = "Stroke", Color = Color3.fromRGB(255, 255, 255), Thickness = 1, Transparency = 1})
+        })
+
+        -- Thanh Home Bar đặc trưng ở đáy iPhone
+        local HomeBar = Create("Frame", {
+            Parent = IntroOverlay,
+            Size = UDim2.new(0, 140, 0, 5),
+            Position = UDim2.new(0.5, 0, 0.95, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+            BackgroundTransparency = 1,
+            ZIndex = 2004
+        }, {
+            Create("UICorner", {CornerRadius = UDim.new(1, 0)})
+        })
+
+        local unlocking = false
+        local function FinishIntroAndOpenMain()
+            if unlocking then return end
+            unlocking = true
+            introFinished = true
+
+            -- Hiệu ứng vuốt mở khóa iPhone (Trượt lên trên + Mờ dần)
+            TweenService:Create(IntroOverlay, TweenInfo.new(0.55, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
+                Position = UDim2.new(0, 0, -1, 0),
+                BackgroundTransparency = 1
+            }):Play()
+
+            if BlurEffect then
+                TweenService:Create(BlurEffect, TweenInfo.new(0.5), {
+                    Size = blurEnabled and 12 or 0
+                }):Play()
+            end
+
+            task.wait(0.25)
+            Main.Visible = true
+            MainScale.Scale = baseScale * 0.85
+            TweenService:Create(MainScale, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Scale = baseScale
+            }):Play()
+
+            task.delay(0.4, function()
+                if IntroOverlay then IntroOverlay:Destroy() end
+            end)
+        end
+
+        UnlockBtn.MouseButton1Click:Connect(FinishIntroAndOpenMain)
+
+        -- Chạy kịch bản khởi động iPhone trong luồng riêng
+        task.spawn(function()
+            -- 1. Hiện Logo & chạy thanh Boot
+            TweenService:Create(BootLogo, TweenInfo.new(0.45, Enum.EasingStyle.Quad), {TextTransparency = 0}):Play()
+            task.wait(0.25)
+            TweenService:Create(BootBarBg, TweenInfo.new(0.3), {BackgroundTransparency = 0}):Play()
+            TweenService:Create(BootBarFill, TweenInfo.new(1.35, Enum.EasingStyle.Quart, Enum.EasingDirection.InOut), {
+                Size = UDim2.new(1, 0, 1, 0)
+            }):Play()
+            task.wait(1.45)
+
+            -- Ẩn thanh Boot để chuyển sang "Hello / Xin chào"
+            TweenService:Create(BootLogo, TweenInfo.new(0.35), {
+                TextTransparency = 1,
+                Position = UDim2.new(0.5, 0, 0.38, 0)
+            }):Play()
+            TweenService:Create(BootBarBg, TweenInfo.new(0.25), {BackgroundTransparency = 1}):Play()
+            TweenService:Create(BootBarFill, TweenInfo.new(0.25), {BackgroundTransparency = 1}):Play()
+            task.wait(0.35)
+
+            -- 2. Hiện màn hình Chào mừng & Nút mở khóa
+            UnlockBtn.Visible = true
+            TweenService:Create(AmbientGlow, TweenInfo.new(0.8), {BackgroundTransparency = 0.88}):Play()
+            TweenService:Create(WelcomeSub, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
+            TweenService:Create(UnlockBtn, TweenInfo.new(0.5), {
+                BackgroundTransparency = 0.25,
+                TextTransparency = 0
+            }):Play()
+            TweenService:Create(UnlockBtn.Stroke, TweenInfo.new(0.5), {Transparency = 0.65}):Play()
+            TweenService:Create(HomeBar, TweenInfo.new(0.5), {BackgroundTransparency = 0.25}):Play()
+
+            -- 3. Vòng lặp ngôn ngữ kiểu iPhone mới mua
+            local greetings = {"Hello", "Xin chào", "こんにちは", "Bonjour", "Hola"}
+            local idx = 1
+
+            if introAutoContinue then
+                task.delay(3.2, FinishIntroAndOpenMain)
+            end
+
+            while not unlocking and IntroOverlay.Parent do
+                HelloLabel.Text = greetings[idx]
+                HelloLabel.Position = UDim2.new(0.5, 0, 0.46, 0)
+                TweenService:Create(HelloLabel, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                    TextTransparency = 0,
+                    Position = UDim2.new(0.5, 0, 0.43, 0)
+                }):Play()
+
+                task.wait(1.25)
+                if unlocking then break end
+
+                TweenService:Create(HelloLabel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                    TextTransparency = 1,
+                    Position = UDim2.new(0.5, 0, 0.40, 0)
+                }):Play()
+                task.wait(0.32)
+
+                idx = (idx % #greetings) + 1
+            end
+        end)
     end
 
     -- Topbar
@@ -457,7 +681,7 @@ function Library:CreateWindow(options)
         Text = "✕",
         Font = Enum.Font.GothamBold,
         TextSize = 14,
-         TextColor3 = Color3.fromRGB(255, 95, 95),
+        TextColor3 = Color3.fromRGB(255, 95, 95),
         Size = UDim2.new(0, 32, 0, 32),
         Position = UDim2.new(1, -38, 0.5, -16),
         BackgroundTransparency = 0.2,
@@ -498,8 +722,8 @@ function Library:CreateWindow(options)
 
     MakeDraggable(Topbar, Main, Connections)
 
-    -- Hàm đóng/mở với hiệu ứng Scale & Blur
     local function ToggleUI(state)
+        if not introFinished then return end
         isToggled = state
         if isToggled then
             OpenButton.Visible = false
@@ -512,10 +736,9 @@ function Library:CreateWindow(options)
                 TweenService:Create(BlurEffect, TweenInfo.new(0.3), {Size = blurEnabled and 12 or 0}):Play()
             end
         else
-            local closeTween = TweenService:Create(MainScale, TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+            TweenService:Create(MainScale, TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
                 Scale = baseScale * 0.85
-            })
-            closeTween:Play()
+            }):Play()
             if BlurEffect then
                 TweenService:Create(BlurEffect, TweenInfo.new(0.22), {Size = 0}):Play()
             end
@@ -551,7 +774,7 @@ function Library:CreateWindow(options)
 
     function WindowObj:SetBlur(enabled)
         blurEnabled = enabled
-        if BlurEffect and isToggled then
+        if BlurEffect and isToggled and introFinished then
             TweenService:Create(BlurEffect, TweenInfo.new(0.3), {Size = blurEnabled and 12 or 0}):Play()
         end
     end
@@ -568,7 +791,7 @@ function Library:CreateWindow(options)
     table.insert(Connections, keyConn)
 
     -- =========================================================
-    -- TAB SYSTEM
+    -- TAB & COMPONENTS SYSTEM
     -- =========================================================
     function WindowObj:CreateTab(tabOptions)
         tabOptions = tabOptions or {}
@@ -653,7 +876,6 @@ function Library:CreateWindow(options)
             ActivateTab()
         end
 
-        -- 1. SECTION HEADER
         function TabObj:CreateSection(sectionTitle)
             local Section = Create("Frame", {
                 Parent = TabContent,
@@ -674,7 +896,6 @@ function Library:CreateWindow(options)
             return Section
         end
 
-        -- 2. BUTTON (With Description, Icon, Ripple & Loading State)
         function TabObj:CreateButton(btnOptions)
             btnOptions = btnOptions or {}
             local btnName = btnOptions.Name or "Button"
@@ -765,7 +986,6 @@ function Library:CreateWindow(options)
             return BtnController
         end
 
-        -- 3. TOGGLE (With Flag & Controller)
         function TabObj:CreateToggle(tglOptions)
             tglOptions = tglOptions or {}
             local tglName = tglOptions.Name or "Toggle"
@@ -857,7 +1077,6 @@ function Library:CreateWindow(options)
             return ToggleController
         end
 
-        -- 4. SLIDER (With Decimal Step & Direct TextBox Input)
         function TabObj:CreateSlider(sldOptions)
             sldOptions = sldOptions or {}
             local sldName = sldOptions.Name or "Slider"
@@ -992,7 +1211,6 @@ function Library:CreateWindow(options)
             return SliderController
         end
 
-        -- 5. DROPDOWN (With SearchBox & Single/Multi Select)
         function TabObj:CreateDropdown(dropOptions)
             dropOptions = dropOptions or {}
             local dropName = dropOptions.Name or "Dropdown"
@@ -1097,7 +1315,6 @@ function Library:CreateWindow(options)
             })
             BindTheme(Container, "ScrollBarImageColor3", "Accent")
 
-            local ListLayout = Container.UIListLayout
             local OptionButtons = {}
 
             local function UpdateDropdownHeight()
@@ -1192,7 +1409,6 @@ function Library:CreateWindow(options)
             return DropController
         end
 
-        -- 6. CUSTOM TEXTBUTTON
         function TabObj:CreateTextButton(tbOptions)
             tbOptions = tbOptions or {}
             local text = tbOptions.Text or "TextButton"
@@ -1221,7 +1437,6 @@ function Library:CreateWindow(options)
             return TBtn
         end
 
-        -- 7. DYNAMIC LABEL (RichText Support & Controller)
         function TabObj:CreateLabel(lblOptions)
             lblOptions = lblOptions or {}
             local text = lblOptions.Text or "Label"
