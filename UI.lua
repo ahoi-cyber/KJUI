@@ -1,6 +1,6 @@
 -- =========================================================
--- ULTIMATE ROBLOX EXECUTOR-STYLE UI FRAMEWORK V2.1
--- New: iPhone Out-Of-Box (Apple Boot + "Xin chào" Intro)
+-- ULTIMATE ROBLOX EXECUTOR-STYLE UI FRAMEWORK V2.2
+-- New: Dynamic Island UI & Morphing Notification Bar
 -- =========================================================
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -8,7 +8,7 @@ local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 
 local Library = {
-    Version = "2.1.0",
+    Version = "2.2.0",
     Flags = {},
     ThemeObjects = {},
     CurrentTheme = "Dark",
@@ -59,6 +59,9 @@ local Library = {
         }
     }
 }
+
+-- Biến toàn cục quản lý Dynamic Island trỏ từ Window
+local ActiveDynamicIsland = nil
 
 -- =========================================================
 -- UTILITIES & MEMORY MANAGEMENT
@@ -181,7 +184,7 @@ local function MakeDraggable(topbarobject, object, connectionsList)
 end
 
 -- =========================================================
--- NOTIFICATION SYSTEM
+-- NOTIFICATION SYSTEM (MORPHING DYNAMIC ISLAND)
 -- =========================================================
 local NotifyGui = Create("ScreenGui", {
     Name = "UltimateUINotify_V2",
@@ -189,22 +192,6 @@ local NotifyGui = Create("ScreenGui", {
     ResetOnSpawn = false
 })
 NotifyGui.Parent = GetSafeGuiParent()
-
-local NotifyLayout = Create("Frame", {
-    Name = "NotifyContainer",
-    Parent = NotifyGui,
-    BackgroundTransparency = 1,
-    Position = UDim2.new(1, -20, 1, -20),
-    Size = UDim2.new(0, 320, 1, -40),
-    AnchorPoint = Vector2.new(1, 1)
-}, {
-    Create("UIListLayout", {
-        SortOrder = Enum.SortOrder.LayoutOrder,
-        VerticalAlignment = Enum.VerticalAlignment.Bottom,
-        HorizontalAlignment = Enum.HorizontalAlignment.Right,
-        Padding = UDim.new(0, 10)
-    })
-})
 
 local NotifyTypes = {
     Success = {Color = Color3.fromRGB(75, 215, 135), Icon = "✓"},
@@ -221,14 +208,40 @@ function Library:Notify(options)
     local nType = NotifyTypes[options.Type or "Info"] or NotifyTypes.Info
     local accentColor = options.Color or nType.Color
     local iconText = options.Icon or nType.Icon
-    local theme = Library.Themes[Library.CurrentTheme] or Library.Themes.Dark
+
+    -- Nếu đang có Dynamic Island thu nhỏ, ta cho phép nó phình to ra hiển thị thông báo
+    if ActiveDynamicIsland and ActiveDynamicIsland.IsCollapsed() then
+        ActiveDynamicIsland.MorphShowNotification(title, desc, accentColor, iconText, duration)
+        return
+    end
+
+    -- Nếu UI đang mở hoặc không dùng Dynamic Island, hiển thị thông báo góc phải như bình thường
+    local FallbackContainer = NotifyGui:FindFirstChild("NotifyContainer")
+    if not FallbackContainer then
+        FallbackContainer = Create("Frame", {
+            Name = "NotifyContainer",
+            Parent = NotifyGui,
+            BackgroundTransparency = 1,
+            Position = UDim2.new(1, -20, 1, -20),
+            Size = UDim2.new(0, 320, 1, -40),
+            AnchorPoint = Vector2.new(1, 1)
+        }, {
+            Create("UIListLayout", {
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                VerticalAlignment = Enum.VerticalAlignment.Bottom,
+                HorizontalAlignment = Enum.HorizontalAlignment.Right,
+                Padding = UDim.new(0, 10)
+            })
+        })
+    end
 
     local Holder = Create("Frame", {
-        Parent = NotifyLayout,
+        Parent = FallbackContainer,
         Size = UDim2.new(1, 0, 0, 70),
         BackgroundTransparency = 1
     })
 
+    local theme = Library.Themes[Library.CurrentTheme] or Library.Themes.Dark
     local Card = Create("Frame", {
         Parent = Holder,
         Size = UDim2.new(1, 0, 1, 0),
@@ -301,22 +314,13 @@ function Library:Notify(options)
             BackgroundTransparency = 1
         }):Play()
 
-        TweenService:Create(Card.Stroke, TweenInfo.new(0.25), {Transparency = 1}):Play()
-        TweenService:Create(Card.Title, TweenInfo.new(0.25), {TextTransparency = 1}):Play()
-        TweenService:Create(Card.Desc, TweenInfo.new(0.25), {TextTransparency = 1}):Play()
-        TweenService:Create(Card.Icon, TweenInfo.new(0.25), {TextTransparency = 1, BackgroundTransparency = 1}):Play()
-
         task.wait(0.35)
-        TweenService:Create(Holder, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            Size = UDim2.new(1, 0, 0, 0)
-        }):Play()
-        task.wait(0.2)
         Holder:Destroy()
     end)
 end
 
 -- =========================================================
--- WINDOW & iOS OOBE INTRO CREATION
+-- WINDOW & DYNAMIC ISLAND CREATION
 -- =========================================================
 function Library:CreateWindow(options)
     options = options or {}
@@ -348,26 +352,98 @@ function Library:CreateWindow(options)
     })
     ScreenGui.Parent = GetSafeGuiParent()
 
-    -- Nút mở lại UI khi thu nhỏ (Floating Pill Button)
-    local OpenButton = Create("TextButton", {
-        Name = "OpenUI",
+    -- =========================================================
+    -- DYNAMIC ISLAND (ĐẢO ĐỘNG) Ở CHÍNH GIỮA CẠNH TRÊN MÀN HÌNH
+    -- =========================================================
+    local DynamicIsland = Create("TextButton", {
+        Name = "DynamicIsland",
         Parent = ScreenGui,
-        Size = UDim2.new(0, 95, 0, 38),
-        Position = UDim2.new(0, 25, 0.5, -19),
-        Text = "⚡ Open UI",
-        Font = Enum.Font.GothamBold,
-        TextSize = 13,
+        Size = UDim2.new(0, 126, 0, 32),
+        Position = UDim2.new(0.5, 0, 0, 12),
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(15, 15, 18),
+        Text = "",
         Visible = false,
         AutoButtonColor = false,
-        ZIndex = 999
+        ZIndex = 999,
+        ClipsDescendants = true
     }, {
-        Create("UICorner", {CornerRadius = UDim.new(1, 0)})
+        Create("UICorner", {CornerRadius = UDim.new(1, 0)}),
+        Create("UIStroke", {Color = Color3.fromRGB(45, 45, 52), Thickness = 1.2}),
+        
+        -- Nội dung thu gọn (Icon + Chữ "UI")
+        Create("Frame", {
+            Name = "CollapsedContent",
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Visible = true
+        }, {
+            Create("TextLabel", {
+                Text = "⚡",
+                Font = Enum.Font.GothamBold,
+                TextSize = 13,
+                Size = UDim2.new(0, 30, 1, 0),
+                Position = UDim2.new(0, 6, 0, 0),
+                BackgroundTransparency = 1,
+                TextColor3 = Color3.fromRGB(85, 170, 255)
+            }),
+            Create("TextLabel", {
+                Text = titleText,
+                Font = Enum.Font.GothamBold,
+                TextSize = 12,
+                Size = UDim2.new(1, -36, 1, 0),
+                Position = UDim2.new(0, 34, 0, 0),
+                TextXAlignment = Enum.TextXAlignment.Left,
+                BackgroundTransparency = 1,
+                TextColor3 = Color3.fromRGB(245, 245, 250)
+            })
+        }),
+
+        -- Nội dung mở rộng (Dùng khi có Notification giãn rộng)
+        Create("Frame", {
+            Name = "ExpandedContent",
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Visible = false
+        }, {
+            Create("TextLabel", {
+                Name = "ExpIcon",
+                Text = "ℹ",
+                Font = Enum.Font.GothamBold,
+                TextSize = 16,
+                Size = UDim2.new(0, 34, 0, 34),
+                Position = UDim2.new(0, 12, 0, 10),
+                TextColor3 = Color3.fromRGB(85, 170, 255),
+                BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+            }, {
+                Create("UICorner", {CornerRadius = UDim.new(0, 8)})
+            }),
+            Create("TextLabel", {
+                Name = "ExpTitle",
+                Text = "Title",
+                Font = Enum.Font.GothamBold,
+                TextSize = 13,
+                Size = UDim2.new(1, -60, 0, 18),
+                Position = UDim2.new(0, 54, 0, 9),
+                TextXAlignment = Enum.TextXAlignment.Left,
+                BackgroundTransparency = 1,
+                TextColor3 = Color3.fromRGB(255, 255, 255)
+            }),
+            Create("TextLabel", {
+                Name = "ExpDesc",
+                Text = "Description",
+                Font = Enum.Font.Gotham,
+                TextSize = 11,
+                Size = UDim2.new(1, -60, 0, 24),
+                Position = UDim2.new(0, 54, 0, 26),
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Top,
+                TextWrapped = true,
+                BackgroundTransparency = 1,
+                TextColor3 = Color3.fromRGB(180, 180, 190)
+            })
+        })
     })
-    BindTheme(OpenButton, "BackgroundColor3", "Secondary")
-    BindTheme(OpenButton, "TextColor3", "Accent")
-    local openStroke = Create("UIStroke", {Parent = OpenButton, Thickness = 1.5})
-    BindTheme(openStroke, "Color", "Accent")
-    MakeDraggable(OpenButton, OpenButton, Connections)
 
     -- Main Window
     local Main = Create("Frame", {
@@ -395,7 +471,7 @@ function Library:CreateWindow(options)
     end
 
     -- =========================================================
-    -- iOS / iPHONE OUT-OF-BOX INTRO SEQUENCE
+    -- iPHONE INTRO SEQUENCE
     -- =========================================================
     if useIntro then
         local IntroOverlay = Create("Frame", {
@@ -409,7 +485,6 @@ function Library:CreateWindow(options)
             ClipsDescendants = true
         })
 
-        -- Ánh sáng Ambient Glow mềm phía sau chữ Hello
         local AmbientGlow = Create("Frame", {
             Parent = IntroOverlay,
             Size = UDim2.new(0, 420, 0, 220),
@@ -422,7 +497,6 @@ function Library:CreateWindow(options)
             Create("UICorner", {CornerRadius = UDim.new(1, 0)})
         })
 
-        -- PHASE 1: Logo & Thanh Boot kiểu Apple
         local BootLogo = Create("TextLabel", {
             Parent = IntroOverlay,
             Text = introLogo,
@@ -458,7 +532,6 @@ function Library:CreateWindow(options)
             Create("UICorner", {CornerRadius = UDim.new(1, 0)})
         })
 
-        -- PHASE 2: Màn hình "Hello / Xin chào"
         local HelloLabel = Create("TextLabel", {
             Parent = IntroOverlay,
             Text = "Hello",
@@ -487,7 +560,6 @@ function Library:CreateWindow(options)
             ZIndex = 2002
         })
 
-        -- Nút "Nhấn để bắt đầu" kiểu iOS Glass Pill
         local UnlockBtn = Create("TextButton", {
             Parent = IntroOverlay,
             Text = "Nhấn để bắt đầu",
@@ -508,7 +580,6 @@ function Library:CreateWindow(options)
             Create("UIStroke", {Name = "Stroke", Color = Color3.fromRGB(255, 255, 255), Thickness = 1, Transparency = 1})
         })
 
-        -- Thanh Home Bar đặc trưng ở đáy iPhone
         local HomeBar = Create("Frame", {
             Parent = IntroOverlay,
             Size = UDim2.new(0, 140, 0, 5),
@@ -527,7 +598,6 @@ function Library:CreateWindow(options)
             unlocking = true
             introFinished = true
 
-            -- Hiệu ứng vuốt mở khóa iPhone (Trượt lên trên + Mờ dần)
             TweenService:Create(IntroOverlay, TweenInfo.new(0.55, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
                 Position = UDim2.new(0, 0, -1, 0),
                 BackgroundTransparency = 1
@@ -553,9 +623,7 @@ function Library:CreateWindow(options)
 
         UnlockBtn.MouseButton1Click:Connect(FinishIntroAndOpenMain)
 
-        -- Chạy kịch bản khởi động iPhone trong luồng riêng
         task.spawn(function()
-            -- 1. Hiện Logo & chạy thanh Boot
             TweenService:Create(BootLogo, TweenInfo.new(0.45, Enum.EasingStyle.Quad), {TextTransparency = 0}):Play()
             task.wait(0.25)
             TweenService:Create(BootBarBg, TweenInfo.new(0.3), {BackgroundTransparency = 0}):Play()
@@ -564,7 +632,6 @@ function Library:CreateWindow(options)
             }):Play()
             task.wait(1.45)
 
-            -- Ẩn thanh Boot để chuyển sang "Hello / Xin chào"
             TweenService:Create(BootLogo, TweenInfo.new(0.35), {
                 TextTransparency = 1,
                 Position = UDim2.new(0.5, 0, 0.38, 0)
@@ -573,7 +640,6 @@ function Library:CreateWindow(options)
             TweenService:Create(BootBarFill, TweenInfo.new(0.25), {BackgroundTransparency = 1}):Play()
             task.wait(0.35)
 
-            -- 2. Hiện màn hình Chào mừng & Nút mở khóa
             UnlockBtn.Visible = true
             TweenService:Create(AmbientGlow, TweenInfo.new(0.8), {BackgroundTransparency = 0.88}):Play()
             TweenService:Create(WelcomeSub, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
@@ -584,7 +650,6 @@ function Library:CreateWindow(options)
             TweenService:Create(UnlockBtn.Stroke, TweenInfo.new(0.5), {Transparency = 0.65}):Play()
             TweenService:Create(HomeBar, TweenInfo.new(0.5), {BackgroundTransparency = 0.25}):Play()
 
-            -- 3. Vòng lặp ngôn ngữ kiểu iPhone mới mua
             local greetings = {"Hello", "Xin chào", "こんにちは", "Bonjour", "Hola"}
             local idx = 1
 
@@ -711,7 +776,6 @@ function Library:CreateWindow(options)
     })
     BindTheme(Sidebar, "BackgroundColor3", "Secondary")
 
-    -- Content Container
     local ContentContainer = Create("Frame", {
         Name = "ContentContainer",
         Parent = Main,
@@ -726,7 +790,7 @@ function Library:CreateWindow(options)
         if not introFinished then return end
         isToggled = state
         if isToggled then
-            OpenButton.Visible = false
+            DynamicIsland.Visible = false
             Main.Visible = true
             MainScale.Scale = baseScale * 0.85
             TweenService:Create(MainScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
@@ -745,11 +809,54 @@ function Library:CreateWindow(options)
             task.delay(0.2, function()
                 if not isToggled then
                     Main.Visible = false
-                    OpenButton.Visible = true
+                    DynamicIsland.Visible = true
                 end
             end)
         end
     end
+
+    -- Logic điều khiển Dynamic Island Morphing
+    local isMorphing = false
+    local function MorphShowNotification(title, desc, accentColor, iconText, duration)
+        if isMorphing then return end
+        isMorphing = true
+
+        local collapsed = DynamicIsland.CollapsedContent
+        local expanded = DynamicIsland.ExpandedContent
+
+        expanded.ExpTitle.Text = title
+        expanded.ExpDesc.Text = desc
+        expanded.ExpIcon.Text = iconText
+        expanded.ExpIcon.TextColor3 = accentColor
+
+        -- Hiệu ứng phình to Dynamic Island (Morphing)
+        TweenService:Create(DynamicIsland, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 320, 0, 64)
+        }):Play()
+
+        collapsed.Visible = false
+        expanded.Visible = true
+
+        task.delay(duration, function()
+            if not DynamicIsland or not DynamicIsland.Parent then return end
+            -- Thu nhỏ lại dạng viên thuốc ban đầu
+            TweenService:Create(DynamicIsland, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+                Size = UDim2.new(0, 126, 0, 32)
+            }):Play()
+            expanded.Visible = false
+            collapsed.Visible = true
+            isMorphing = false
+        end)
+    end
+
+    ActiveDynamicIsland = {
+        IsCollapsed = function() return not isToggled end,
+        MorphShowNotification = MorphShowNotification
+    }
+
+    DynamicIsland.MouseButton1Click:Connect(function()
+        ToggleUI(true)
+    end)
 
     local WindowObj = {
         CurrentTab = nil,
@@ -763,6 +870,7 @@ function Library:CreateWindow(options)
         end
         if BlurEffect then BlurEffect:Destroy() end
         if ScreenGui then ScreenGui:Destroy() end
+        ActiveDynamicIsland = nil
     end
 
     function WindowObj:SetScale(percent)
@@ -780,7 +888,6 @@ function Library:CreateWindow(options)
     end
 
     MinimizeButton.MouseButton1Click:Connect(function() ToggleUI(false) end)
-    OpenButton.MouseButton1Click:Connect(function() ToggleUI(true) end)
     CloseButton.MouseButton1Click:Connect(function() WindowObj:Destroy() end)
 
     local keyConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
