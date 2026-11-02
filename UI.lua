@@ -1,24 +1,33 @@
 -- =========================================================
--- ULTIMATE ROBLOX EXECUTOR-STYLE UI FRAMEWORK V1.0 (UPDATED)
+-- ULTIMATE ROBLOX EXECUTOR-STYLE UI FRAMEWORK V1.1
 -- =========================================================
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 
 local Library = {
     Themes = {
         Dark = {
-            Main = Color3.fromRGB(30, 30, 30),
-            Secondary = Color3.fromRGB(40, 40, 40),
-            Stroke = Color3.fromRGB(60, 60, 60),
+            Main = Color3.fromRGB(28, 28, 32),
+            Secondary = Color3.fromRGB(38, 38, 44),
+            Stroke = Color3.fromRGB(60, 60, 68),
             Text = Color3.fromRGB(255, 255, 255),
             Accent = Color3.fromRGB(85, 170, 255),
             ToggleOn = Color3.fromRGB(85, 255, 127),
-            ToggleOff = Color3.fromRGB(100, 100, 100)
+            ToggleOff = Color3.fromRGB(90, 90, 98)
         }
     }
 }
+
+-- Utility: Lấy vùng chứa GUI an toàn cho cả Studio & Executor
+local function GetSafeGuiParent()
+    local success, parent = pcall(function()
+        if gethui then return gethui() end
+        return game:GetService("CoreGui")
+    end)
+    if success and parent then return parent end
+    return Players.LocalPlayer:WaitForChild("PlayerGui")
+end
 
 -- Utility: Tạo UI nhanh
 local function Create(className, properties, children)
@@ -60,57 +69,137 @@ local function MakeDraggable(topbarobject, object)
     end)
 end
 
--- Notification System
-local NotifyGui = Create("ScreenGui", {Name = "UltimateUINotify", ZIndexBehavior = Enum.ZIndexBehavior.Sibling})
-pcall(function() NotifyGui.Parent = CoreGui end)
-if not NotifyGui.Parent then NotifyGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui") end
+-- =========================================================
+-- NOTIFICATION SYSTEM (FIXED)
+-- =========================================================
+local NotifyGui = Create("ScreenGui", {
+    Name = "UltimateUINotify",
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    ResetOnSpawn = false
+})
+NotifyGui.Parent = GetSafeGuiParent()
 
 local NotifyLayout = Create("Frame", {
-    Name = "NotifyContainer", Parent = NotifyGui, BackgroundTransparency = 1,
-    Position = UDim2.new(1, -320, 1, -20), Size = UDim2.new(0, 300, 1, 0), AnchorPoint = Vector2.new(0, 1)
+    Name = "NotifyContainer",
+    Parent = NotifyGui,
+    BackgroundTransparency = 1,
+    Position = UDim2.new(1, -20, 1, -20),
+    Size = UDim2.new(0, 310, 1, -40),
+    AnchorPoint = Vector2.new(1, 1)
 }, {
-    Create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Bottom, Padding = UDim.new(0, 10)})
+    Create("UIListLayout", {
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        VerticalAlignment = Enum.VerticalAlignment.Bottom,
+        HorizontalAlignment = Enum.HorizontalAlignment.Right,
+        Padding = UDim.new(0, 10)
+    })
 })
 
+local NotifyTypes = {
+    Success = {Color = Color3.fromRGB(85, 255, 127), Icon = "✓"},
+    Warning = {Color = Color3.fromRGB(255, 185, 65),  Icon = "⚠"},
+    Error   = {Color = Color3.fromRGB(255, 85, 85),  Icon = "✕"},
+    Info    = {Color = Color3.fromRGB(85, 170, 255), Icon = "ℹ"}
+}
+
 function Library:Notify(options)
+    options = options or {}
     local title = options.Title or "Notification"
     local desc = options.Description or ""
     local duration = options.Duration or 3
-    local color = options.Color or Library.Themes.Dark.Accent
+    local nType = NotifyTypes[options.Type or "Info"] or NotifyTypes.Info
+    local accentColor = options.Color or nType.Color
+    local iconText = options.Icon or nType.Icon
 
-    local notif = Create("Frame", {
-        Size = UDim2.new(1, 0, 0, 60), BackgroundColor3 = Library.Themes.Dark.Main, BackgroundTransparency = 1
+    local Holder = Create("Frame", {
+        Parent = NotifyLayout,
+        Size = UDim2.new(1, 0, 0, 68),
+        BackgroundTransparency = 1
+    })
+
+    local Card = Create("Frame", {
+        Parent = Holder,
+        Size = UDim2.new(1, 0, 1, 0),
+        Position = UDim2.new(1, 350, 0, 0),
+        BackgroundColor3 = Library.Themes.Dark.Main,
+        BackgroundTransparency = 0.05,
+        ClipsDescendants = true
     }, {
-        Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
-        Create("UIStroke", {Color = color, Thickness = 1.5, Transparency = 1}),
+        Create("UICorner", {CornerRadius = UDim.new(0, 8)}),
+        Create("UIStroke", {Name = "Stroke", Color = accentColor, Thickness = 1.5, Transparency = 0.2}),
         Create("TextLabel", {
-            Text = title, Font = Enum.Font.GothamBold, TextSize = 16, TextColor3 = Library.Themes.Dark.Text,
-            BackgroundTransparency = 1, Size = UDim2.new(1, -20, 0, 25), Position = UDim2.new(0, 10, 0, 5), TextXAlignment = Enum.TextXAlignment.Left, TextTransparency = 1
+            Name = "Icon",
+            Text = iconText,
+            Font = Enum.Font.GothamBold,
+            TextSize = 18,
+            TextColor3 = accentColor,
+            BackgroundColor3 = Library.Themes.Dark.Secondary,
+            Size = UDim2.new(0, 36, 0, 36),
+            Position = UDim2.new(0, 12, 0.5, -20)
+        }, {
+            Create("UICorner", {CornerRadius = UDim.new(0, 6)})
         }),
         Create("TextLabel", {
-            Text = desc, Font = Enum.Font.Gotham, TextSize = 13, TextColor3 = Color3.fromRGB(200, 200, 200),
-            BackgroundTransparency = 1, Size = UDim2.new(1, -20, 0, 25), Position = UDim2.new(0, 10, 0, 30), TextXAlignment = Enum.TextXAlignment.Left, TextTransparency = 1
+            Name = "Title",
+            Text = title,
+            Font = Enum.Font.GothamBold,
+            TextSize = 14,
+            TextColor3 = Library.Themes.Dark.Text,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, -65, 0, 20),
+            Position = UDim2.new(0, 58, 0, 10),
+            TextXAlignment = Enum.TextXAlignment.Left
+        }),
+        Create("TextLabel", {
+            Name = "Desc",
+            Text = desc,
+            Font = Enum.Font.Gotham,
+            TextSize = 12,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, -65, 0, 28),
+            Position = UDim2.new(0, 58, 0, 30),
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top,
+            TextWrapped = true
+        }),
+        Create("Frame", {
+            Name = "ProgressBar",
+            BackgroundColor3 = accentColor,
+            BorderSizePixel = 0,
+            Position = UDim2.new(0, 0, 1, -3),
+            Size = UDim2.new(1, 0, 0, 3)
         })
     })
-    notif.Parent = NotifyLayout
 
-    TweenService:Create(notif, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundTransparency = 0.1}):Play()
-    for _, child in pairs(notif:GetChildren()) do
-        if child:IsA("TextLabel") or child:IsA("UIStroke") then
-            TweenService:Create(child, TweenInfo.new(0.5), {TextTransparency = 0, Transparency = 0}):Play()
-        end
-    end
+    TweenService:Create(Card, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+        Position = UDim2.new(0, 0, 0, 0)
+    }):Play()
+
+    TweenService:Create(Card.ProgressBar, TweenInfo.new(duration, Enum.EasingStyle.Linear), {
+        Size = UDim2.new(0, 0, 0, 3)
+    }):Play()
 
     task.spawn(function()
         task.wait(duration)
-        TweenService:Create(notif, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
-        for _, child in pairs(notif:GetChildren()) do
-            if child:IsA("TextLabel") or child:IsA("UIStroke") then
-                TweenService:Create(child, TweenInfo.new(0.5), {TextTransparency = 1, Transparency = 1}):Play()
-            end
-        end
-        task.wait(0.5)
-        notif:Destroy()
+        if not Card or not Card.Parent then return end
+
+        TweenService:Create(Card, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+            Position = UDim2.new(1, 350, 0, 0),
+            BackgroundTransparency = 1
+        }):Play()
+
+        TweenService:Create(Card.Stroke, TweenInfo.new(0.3), {Transparency = 1}):Play()
+        TweenService:Create(Card.Title, TweenInfo.new(0.3), {TextTransparency = 1}):Play()
+        TweenService:Create(Card.Desc, TweenInfo.new(0.3), {TextTransparency = 1}):Play()
+        TweenService:Create(Card.Icon, TweenInfo.new(0.3), {TextTransparency = 1, BackgroundTransparency = 1}):Play()
+
+        task.wait(0.35)
+        TweenService:Create(Holder, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(1, 0, 0, 0)
+        }):Play()
+        task.wait(0.2)
+        Holder:Destroy()
     end)
 end
 
@@ -122,11 +211,13 @@ function Library:CreateWindow(options)
     local theme = Library.Themes[options.Theme or "Dark"]
     local isToggled = true
 
-    local ScreenGui = Create("ScreenGui", {Name = titleText, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ResetOnSpawn = false})
-    pcall(function() ScreenGui.Parent = CoreGui end)
-    if not ScreenGui.Parent then ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui") end
+    local ScreenGui = Create("ScreenGui", {
+        Name = titleText,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        ResetOnSpawn = false
+    })
+    ScreenGui.Parent = GetSafeGuiParent()
 
-    -- Nút mở lại UI khi thu nhỏ (Floating Open Button)
     local OpenButton = Create("TextButton", {
         Name = "OpenUI", Parent = ScreenGui, Size = UDim2.new(0, 45, 0, 45),
         Position = UDim2.new(0, 20, 0.5, -22.5), BackgroundColor3 = theme.Secondary,
@@ -144,7 +235,7 @@ function Library:CreateWindow(options)
     }, {
         Create("UICorner", {CornerRadius = UDim.new(0, 8)}),
         Create("UIStroke", {Color = theme.Stroke, Thickness = 1}),
-        Create("Frame", { -- Topbar
+        Create("Frame", {
             Name = "Topbar", Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = theme.Secondary, BorderSizePixel = 0
         }, {
             Create("UICorner", {CornerRadius = UDim.new(0, 8)}),
@@ -153,38 +244,34 @@ function Library:CreateWindow(options)
                 Name = "Title", Text = titleText, Font = Enum.Font.GothamBold, TextSize = 16, TextColor3 = theme.Text,
                 Size = UDim2.new(1, -100, 1, 0), Position = UDim2.new(0, 15, 0, 0), TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1
             }),
-            -- Nút Thu Nhỏ (-)
             Create("TextButton", {
                 Name = "MinimizeButton", Text = "-", Font = Enum.Font.GothamBold, TextSize = 18, TextColor3 = theme.Text,
                 Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -70, 0.5, -15), BackgroundTransparency = 1
             }),
-            -- Nút Đóng (X)
             Create("TextButton", {
                 Name = "CloseButton", Text = "×", Font = Enum.Font.GothamBold, TextSize = 18, TextColor3 = Color3.fromRGB(255, 85, 85),
                 Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -35, 0.5, -15), BackgroundTransparency = 1
             })
         }),
-        Create("Frame", { -- Sidebar (Tabs)
+        Create("Frame", {
             Name = "Sidebar", Size = UDim2.new(0, 150, 1, -40), Position = UDim2.new(0, 0, 0, 40), BackgroundColor3 = theme.Secondary, BorderSizePixel = 0
         }, {
             Create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder}),
             Create("UIPadding", {PaddingTop = UDim.new(0, 10), PaddingBottom = UDim.new(0, 10), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10)})
         }),
-        Create("Frame", { -- Container for Tab Content
+        Create("Frame", {
             Name = "ContentContainer", Size = UDim2.new(1, -150, 1, -40), Position = UDim2.new(0, 150, 0, 40), BackgroundTransparency = 1
         })
     })
 
     MakeDraggable(Main.Topbar, Main)
 
-    -- Hàm xử lý ẩn/hiện UI chung
     local function ToggleUI(state)
         isToggled = state
         Main.Visible = isToggled
         OpenButton.Visible = not isToggled
     end
 
-    -- Sự kiện các nút điều hướng UI
     Main.Topbar.MinimizeButton.MouseButton1Click:Connect(function()
         ToggleUI(false)
     end)
@@ -197,7 +284,6 @@ function Library:CreateWindow(options)
         ToggleUI(true)
     end)
 
-    -- Phím tắt RightShift
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if not gameProcessed and input.KeyCode == Enum.KeyCode.RightShift then
             ToggleUI(not isToggled)
@@ -251,7 +337,6 @@ function Library:CreateWindow(options)
         local TabObj = {Content = TabContent, Button = TabButton}
         table.insert(WindowObj.Tabs, TabObj)
 
-        -- ================= COMPONENTS ================= --
         function TabObj:CreateButton(btnOptions)
             local btnName = btnOptions.Name or "Button"
             local callback = btnOptions.Callback or function() end
@@ -264,7 +349,7 @@ function Library:CreateWindow(options)
                 Create("UIStroke", {Color = theme.Stroke, Thickness = 1})
             })
 
-            Button.MouseEnter:Connect(function() TweenService:Create(Button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play() end)
+            Button.MouseEnter:Connect(function() TweenService:Create(Button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 50, 58)}):Play() end)
             Button.MouseLeave:Connect(function() TweenService:Create(Button, TweenInfo.new(0.2), {BackgroundColor3 = theme.Secondary}):Play() end)
             Button.MouseButton1Down:Connect(function()
                 TweenService:Create(Button, TweenInfo.new(0.1), {Size = UDim2.new(0.98, 0, 0, 38)}):Play()
